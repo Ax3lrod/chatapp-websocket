@@ -17,19 +17,19 @@
             type="text"
             placeholder="Username"
             required
-            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
           />
           <input
             id="password"
             type="password"
             placeholder="Password"
             required
-            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200"
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-200"
           />
           <div class="flex justify-between space-x-2">
             <button
               type="submit"
-              class="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition"
+              class="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition"
             >
               Login
             </button>
@@ -56,12 +56,24 @@
         <input
           id="input"
           autocomplete="off"
-          class="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring focus:ring-indigo-200"
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring focus:ring-blue-200"
+        />
+        <input
+          type="file"
+          id="fileInput"
+          class="ml-2 border-gray-300"
         />
         <button
-          class="ml-2 bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition"
+          class="ml-2 bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition"
         >
           Send
+        </button>
+        <button
+          type="button"
+          onclick="logout()"
+          class="ml-2 bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-700 transition"
+        >
+          Logout
         </button>
       </form>
     </div>
@@ -75,6 +87,7 @@
       const messages = document.getElementById("messages");
       const form = document.getElementById("form");
       const input = document.getElementById("input");
+      const fileInput = document.getElementById("fileInput");
       const authContainer = document.getElementById("authContainer");
       const chatContainer = document.getElementById("chatContainer");
       const authForm = document.getElementById("authForm");
@@ -129,24 +142,59 @@
           addMessage(name + " has joined the chat");
         });
 
-        socket.on("chat message", (msg) => {
-          addMessage(msg);
+        socket.on("chat message", (msg, sender, timestamp) => {
+          addMessage(msg, sender, timestamp);
         });
 
         form.addEventListener("submit", function (e) {
           e.preventDefault();
-          if (input.value) {
-            socket.emit("chat message", input.value);
+          if (input.value || fileInput.files.length > 0) {
+            let message = input.value.trim();
+            if (fileInput.files.length > 0) {
+              const file = fileInput.files[0];
+              const formData = new FormData();
+              formData.append("file", file);
+
+              fetch("/upload", {
+                method: "POST",
+                body: formData,
+              })
+                .then((res) => res.json())
+                .then((data) => {
+                  if (data.fileUrl) {
+                    message = `<img src="${data.fileUrl}" alt="image" class="max-w-xs" />`;
+                    socket.emit("chat message", message);
+                  }
+                })
+                .catch(console.error);
+            } else {
+              socket.emit("chat message", message);
+            }
             input.value = "";
+            fileInput.value = "";
           }
         });
       }
 
-      function addMessage(msg) {
+      function addMessage(msg, sender = currentUser, timestamp = new Date().toLocaleTimeString()) {
         const item = document.createElement("li");
-        item.textContent = msg;
+        const messageHtml = `
+          <div class="bg-blue-600 p-2 rounded-lg w-full">
+            <p class="text-xs text-gray-300">${timestamp}</p>
+            <p class="mt-1 text-white">${msg}</p>
+          </div>
+        `;
+        item.innerHTML = messageHtml;
         messages.appendChild(item);
         window.scrollTo(0, document.body.scrollHeight);
+      }
+
+      function logout() {
+        socket.disconnect();
+        authContainer.style.display = "block";
+        chatContainer.style.display = "none";
+        token = "";
+        currentUser = "";
       }
     </script>
   </body>

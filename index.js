@@ -7,12 +7,14 @@ const { Server } = require("socket.io");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const { authenticate, verifyToken } = require("./auth");
+const multer = require("multer");
 
 dotenv.config();
 
 // ==== APP SETUP ====
 const app = express();
 app.use(cors());
+app.use("/uploads", express.static("uploads"));
 app.use(express.json());
 
 // ==== HTTPS SERVER ====
@@ -77,6 +79,13 @@ app.post("/login", async (req, res) => {
     console.error("Login error:", err);
     res.status(500).json({ error: "Login failed" });
   }
+});
+
+const upload = multer({ dest: "uploads/" });
+
+app.post("/upload", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  res.json({ fileUrl: `/uploads/${req.file.filename}` });
 });
 
 // ==== SOCKET.IO AUTH ====
