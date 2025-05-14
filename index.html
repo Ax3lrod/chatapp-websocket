@@ -48,6 +48,10 @@
 
     <!-- Chat Container -->
     <div id="chatContainer" class="flex flex-col h-screen hidden">
+      <div class="flex items-center justify-between p-4 bg-white border-b border-gray-200">
+        <h1 class="text-xl font-bold">Chat Room</h1>
+        <p id="onlineCount" class="text-sm text-gray-500">👥 0 user(s) online</p>
+      </div>
       <ul id="messages" class="flex-1 overflow-y-auto px-4 py-6 space-y-2"></ul>
       <form
         id="form"
@@ -138,6 +142,10 @@
           addMessage("You have connected as " + currentUser);
         });
 
+        socket.on("online-count", (count) => {
+          document.getElementById("onlineCount").textContent = `🟢 ${count} user(s) online`
+        });
+
         socket.on("new user", (name) => {
           addMessage(name + " has joined the chat");
         });
@@ -145,6 +153,14 @@
         socket.on("chat message", (msg, sender, timestamp) => {
           addMessage(msg, sender, timestamp);
         });
+
+        socket.on("user-disconnected", (username) => {
+          const li = document.createElement("li");
+          li.textContent = `${username} has left the chat`;
+          li.className = "text-gray-500 italic"; 
+          messages.appendChild(li);
+        });
+
 
         form.addEventListener("submit", function (e) {
           e.preventDefault();

@@ -103,9 +103,13 @@ io.use((socket, next) => {
 });
 
 // ==== SOCKET.IO EVENTS ====
+let onlineUsers = new Set();
+
 io.on("connection", (socket) => {
   console.log(`🔌 ${socket.username} connected`);
   socket.broadcast.emit("new user", socket.username);
+  onlineUsers.add(socket.username);
+  io.emit("online-count", onlineUsers.size);
 
   socket.on("chat message", (msg) => {
     const fullMsg = `${socket.username}: ${msg}`;
@@ -115,6 +119,11 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log(`❌ ${socket.username} disconnected`);
+    if (socket.username) {
+      socket.broadcast.emit("user-disconnected", socket.username);
+      onlineUsers.delete(socket.username);
+      io.emit("online-count", onlineUsers.size);
+    }
   });
 });
 
