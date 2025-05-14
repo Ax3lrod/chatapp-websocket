@@ -1,115 +1,153 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>Socket.IO chat</title>
-    <style>
-      body {
-        margin: 0;
-        padding-bottom: 3rem;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          Helvetica, Arial, sans-serif;
-      }
-
-      #form {
-        background: rgba(0, 0, 0, 0.15);
-        padding: 0.25rem;
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        display: flex;
-        height: 3rem;
-        box-sizing: border-box;
-        backdrop-filter: blur(10px);
-      }
-      #input {
-        border: none;
-        padding: 0 1rem;
-        flex-grow: 1;
-        border-radius: 2rem;
-        margin: 0.25rem;
-      }
-      #input:focus {
-        outline: none;
-      }
-      #form > button {
-        background: #333;
-        border: none;
-        padding: 0 1rem;
-        margin: 0.25rem;
-        border-radius: 3px;
-        outline: none;
-        color: #fff;
-      }
-
-      #messages {
-        list-style-type: none;
-        margin: 0;
-        padding: 0;
-      }
-      #messages > li {
-        padding: 0.5rem 1rem;
-      }
-      #messages > li:nth-child(odd) {
-        background: #efefef;
-      }
-    </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Socket.IO Chat with Auth</title>
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body>
-    <ul id="messages"></ul>
-    <form id="form" action="">
-      <input id="input" autocomplete="off" /><button>Send</button>
-    </form>
+  <body class="bg-gray-100 font-sans h-screen">
+    <!-- Auth Container -->
+    <div id="authContainer" class="fixed inset-0 flex items-center justify-center bg-white z-10">
+      <div class="bg-gray-100 p-8 rounded-lg shadow-md w-full max-w-md">
+        <h2 class="text-2xl font-bold mb-4 text-center">Login or Register</h2>
+        <form id="authForm" class="space-y-4">
+          <input
+            id="username"
+            type="text"
+            placeholder="Username"
+            required
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200"
+          />
+          <input
+            id="password"
+            type="password"
+            placeholder="Password"
+            required
+            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-indigo-200"
+          />
+          <div class="flex justify-between space-x-2">
+            <button
+              type="submit"
+              class="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition"
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              onclick="register()"
+              class="w-full bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-700 transition"
+            >
+              Register
+            </button>
+          </div>
+        </form>
+        <p id="authMessage" class="mt-4 text-center text-red-500"></p>
+      </div>
+    </div>
+
+    <!-- Chat Container -->
+    <div id="chatContainer" class="flex flex-col h-screen hidden">
+      <ul id="messages" class="flex-1 overflow-y-auto px-4 py-6 space-y-2"></ul>
+      <form
+        id="form"
+        class="fixed bottom-0 left-0 right-0 flex items-center p-4 border-t border-gray-200 bg-white"
+      >
+        <input
+          id="input"
+          autocomplete="off"
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring focus:ring-indigo-200"
+        />
+        <button
+          class="ml-2 bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition"
+        >
+          Send
+        </button>
+      </form>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-      let socket = io();
+      let socket;
+      let token = "";
+      let currentUser = "";
 
-      let messages = document.getElementById("messages");
-      let form = document.getElementById("form");
-      let input = document.getElementById("input");
+      const messages = document.getElementById("messages");
+      const form = document.getElementById("form");
+      const input = document.getElementById("input");
+      const authContainer = document.getElementById("authContainer");
+      const chatContainer = document.getElementById("chatContainer");
+      const authForm = document.getElementById("authForm");
+      const authMessage = document.getElementById("authMessage");
 
-      // ask for username then send to server
-      let username = prompt("Enter your username:") || "Anonymous";
-      if (username.length > 10) {
-        username = username.slice(0, 10);
+      async function login(username, password) {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        return res.json();
       }
-      username = username.trim();
-      if (username.length === 0) {
-        username = "Anonymous";
+
+      async function register() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const res = await fetch("/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        authMessage.textContent = data.message || data.error || "";
       }
 
-      socket.on("connect", function () {
-        var item = document.createElement("li");
-        item.textContent = "You have connected to the chat as " + username;
-        messages.appendChild(item);
-      });
-
-      socket.emit("new user", username);
-
-      socket.on("new user", function (username) {
-        var item = document.createElement("li");
-        item.textContent = username + " has joined the chat";
-        messages.appendChild(item);
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-
-      form.addEventListener("submit", function (e) {
+      authForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        if (input.value) {
-          socket.emit("chat message", username + ": " + input.value);
-          input.value = "";
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const data = await login(username, password);
+
+        if (data.token) {
+          token = data.token;
+          currentUser = username;
+          authContainer.style.display = "none";
+          chatContainer.style.display = "block";
+          startSocket();
         } else {
-          alert("Please enter a message.");
+          authMessage.textContent = data.error || "Login failed";
         }
       });
 
-      socket.on("chat message", function (msg) {
-        var item = document.createElement("li");
+      function startSocket() {
+        socket = io({ auth: { token } });
+
+        socket.on("connect", () => {
+          addMessage("You have connected as " + currentUser);
+        });
+
+        socket.on("new user", (name) => {
+          addMessage(name + " has joined the chat");
+        });
+
+        socket.on("chat message", (msg) => {
+          addMessage(msg);
+        });
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          if (input.value) {
+            socket.emit("chat message", input.value);
+            input.value = "";
+          }
+        });
+      }
+
+      function addMessage(msg) {
+        const item = document.createElement("li");
         item.textContent = msg;
         messages.appendChild(item);
         window.scrollTo(0, document.body.scrollHeight);
-      });
+      }
     </script>
   </body>
 </html>
